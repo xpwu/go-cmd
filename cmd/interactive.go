@@ -1,34 +1,28 @@
-package command
+package cmd
 
 import (
   "bufio"
   "fmt"
-  "github.com/xpwu/go-commandline/args"
-  "github.com/xpwu/go-commandline/interac"
-  "github.com/xpwu/go-commandline/pid"
-  "github.com/xpwu/go-commandline/tinyFlag"
+  "github.com/xpwu/go-cmd/arg"
+  "github.com/xpwu/go-cmd/exe"
+  "github.com/xpwu/go-cmd/interac"
+  "github.com/xpwu/go-cmd/pid"
   "os"
   "time"
 )
 
-type interactiveCmd struct {
-}
-
 func init() {
-  arg := false
-  tinyFlag.BoolVar(&arg, "i", false, "进入交互模式")
-  RegisterCommand(func() bool {
-    return arg
-  }, func() Command {
-    return &interactiveCmd{}
-  }, NotAutoReadConf())
+  RegisterCmd("client", "interactive mode", func(args *arg.Arg) {
+    args.Parse()
+    client()
+  })
 }
 
-func (i *interactiveCmd) Run() {
-
+func client() {
   pd, err := pid.Read()
   if err != nil {
-    panic(args.Args.ExeName + "服务并没有运行")
+    fmt.Print(exe.Exe.Name + "服务未启动")
+    os.Exit(0)
   }
 
   write := interac.ChanFromServer(pd)
@@ -41,13 +35,13 @@ func (i *interactiveCmd) Run() {
   }:
     out, ok := <-response
     if !ok {
-      fmt.Println("连接pid=" + pd + "的" + args.Args.ExeName + "服务失败，可能服务没有启动")
+      fmt.Println("连接pid=" + pd + "的" + exe.Exe.Name + "服务失败，可能服务没有启动")
       os.Exit(1)
     }
     fmt.Println(out)
     fmt.Print("\n>")
   case <-time.After(3 * time.Second):
-    fmt.Println("连接pid=" + pd + "的" + args.Args.ExeName + "服务超时，可能服务没有启动")
+    fmt.Println("连接pid=" + pd + "的" + exe.Exe.Name + "服务超时，可能服务没有启动")
     return
   }
 

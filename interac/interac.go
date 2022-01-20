@@ -2,20 +2,20 @@ package interac
 
 import (
   "bufio"
-  "github.com/xpwu/go-commandline/args"
   "github.com/xpwu/go-log/log"
   "io"
   "net"
   "os"
-  "path"
+  "path/filepath"
   "strings"
 )
 
 //  客户端以 \n 为标记，作为一次发送；服务器以io.EOF的接收作为一次发送
 
 func getFilePath (key string) (file string,err error)  {
-  if !path.IsAbs(key) {
-    key = path.Join("/tmp/com." + args.Args.ExeName + ".me/", key)
+  key, err = filepath.Abs(key)
+  if err != nil {
+    return "", err
   }
 
   if err = os.MkdirAll(key, 0777); err != nil {
@@ -23,7 +23,7 @@ func getFilePath (key string) (file string,err error)  {
     return
   }
 
-  file = path.Join(key, "unix_socket")
+  file = filepath.Join(key, ".unix_socket")
 
   return
 }

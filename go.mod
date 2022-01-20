@@ -1,8 +1,8 @@
-module github.com/xpwu/go-commandline
+module github.com/xpwu/go-cmd
 
 go 1.16
 
 require (
-	github.com/xpwu/go-config v0.0.0-20220113142809-06d3e926fcd0
-	github.com/xpwu/go-log v0.0.0-20220115110754-5186f5860a1c
+	github.com/xpwu/go-config v0.0.0-20220120022145-665ba74379f3
+	github.com/xpwu/go-log v0.0.0-20220120022843-2cbc01400de4
 )
