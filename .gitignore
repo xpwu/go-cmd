@@ -13,3 +13,6 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+output/config.json
+output/TestRun_in_github_com_xpwu_go_cmd_cmd
+output/config.json.default

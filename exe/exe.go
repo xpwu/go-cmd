@@ -20,7 +20,7 @@ func init() {
 	if err != nil {
 		Exe.AbsDir = e
 	} else {
-		Exe.AbsDir = f
+		Exe.AbsDir = filepath.Dir(f)
 	}
 
 	Exe.Name = filepath.Base(e)

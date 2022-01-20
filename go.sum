@@ -13,6 +13,7 @@ github.com/xpwu/go-log v0.0.0-20220115110754-5186f5860a1c h1:Mx02Sj8/KHZL+kgKPpl
 github.com/xpwu/go-log v0.0.0-20220115110754-5186f5860a1c/go.mod h1:DA5SMiHeyG0+NTfQKR8ofX/wki7uiWeL8pT8HBr1KGY=
 github.com/xpwu/go-log v0.0.0-20220120022843-2cbc01400de4 h1:4sTgcsTDPdsGfERkNBjFxxuYiX87pLo3KTX0Cs8zmwg=
 github.com/xpwu/go-log v0.0.0-20220120022843-2cbc01400de4/go.mod h1:qulI7g0Yyd0Wr5RbH5cVEZiGhJISJVgGjwy6HnQaEms=
+github.com/xpwu/go-x v0.0.0-20220120021151-4ac8ee529bca h1:gqxneY8YF2NH8QWb34cYgPe9fyahA30IbB4YBVtOR34=
 github.com/xpwu/go-x v0.0.0-20220120021151-4ac8ee529bca/go.mod h1:fbWlT5O1aPLdzOhKnkPFao9E3q5LjQY3GXFnzML6Xz4=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/yaml.v2 v2.2.2 h1:ZCJp+EgiOT7lHqUV2J862kp8Qj64Jo6az82+3Td9dZw=
