@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/go-commandline.iml" filepath="$PROJECT_DIR$/.idea/go-commandline.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/go-cmd.iml" filepath="$PROJECT_DIR$/.idea/go-cmd.iml" />
     </modules>
   </component>
 </project>
