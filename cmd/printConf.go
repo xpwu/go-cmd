@@ -3,7 +3,7 @@ package cmd
 import (
   "github.com/xpwu/go-cmd/arg"
   "github.com/xpwu/go-cmd/exe"
-  "github.com/xpwu/go-config/config"
+  "github.com/xpwu/go-config/configs"
   "path/filepath"
 )
 
@@ -15,7 +15,7 @@ func init() {
     if !filepath.IsAbs(argR) {
       argR = filepath.Join(exe.Exe.AbsDir, argR)
     }
-    config.SetConfigurator(&config.JsonConfig{PrintFile: argR})
-    config.Print()
+    configs.SetConfigurator(&configs.JsonConfig{PrintFile: argR})
+    configs.Print()
   })
 }
