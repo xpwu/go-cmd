@@ -1,9 +1,10 @@
-package cmd
+package interactive
 
 import (
   "bufio"
   "fmt"
   "github.com/xpwu/go-cmd/arg"
+  "github.com/xpwu/go-cmd/cmd"
   "github.com/xpwu/go-cmd/exe"
   "github.com/xpwu/go-cmd/interac"
   "github.com/xpwu/go-cmd/pid"
@@ -12,7 +13,7 @@ import (
 )
 
 func init() {
-  RegisterCmd("client", "interactive mode", func(args *arg.Arg) {
+  cmd.RegisterCmd("client", "interactive mode", func(args *arg.Arg) {
     args.Parse()
     client()
   })

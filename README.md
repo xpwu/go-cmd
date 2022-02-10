@@ -1,7 +1,16 @@
 # go-cmd
 
-配置、解析命令行参数，匹配一个具体的Command。
-此模块中实现了config的打印、校验、读取命令。
+配置、解析命令行参数，匹配一个具体的Command。   
+
+此模块中实现了config的打印、校验、交互模式命令。
+```
+import (
+  _ "github.com/xpwu/go-cmd/cmd/interactive"
+  _ "github.com/xpwu/go-cmd/cmd/printconf"
+  _ "github.com/xpwu/go-cmd/cmd/validconf"
+)
+```
+在import模块中用如上的方式引入，即可使用需要的默认命令。   
 
 ## Usage
 ### Package
