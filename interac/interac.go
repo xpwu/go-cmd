@@ -2,6 +2,7 @@ package interac
 
 import (
   "bufio"
+  "github.com/xpwu/go-cmd/pid"
   "github.com/xpwu/go-log/log"
   "io"
   "net"
@@ -53,6 +54,16 @@ func ChanFromClient(key string) <-chan RequestChan {
   }()
 
   return ret
+}
+
+func ChanFromClientByPID() <-chan RequestChan {
+  err := pid.Write(os.Getpid())
+  pd, err := pid.Read()
+  if err != nil {
+    log.Error("write or read pid error ", err)
+    return nil
+  }
+  return ChanFromClient(pd)
 }
 
 func ChanFromServer(key string) chan<- RequestChan {
