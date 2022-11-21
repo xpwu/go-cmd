@@ -17,7 +17,7 @@ func format(len, maxLen int) string {
   for i := maxLen - len + 2; i > 0; i-- {
     format += " "
   }
-  format += "%s\n"
+  format += ": %s\n"
 
   return format
 }

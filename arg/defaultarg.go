@@ -1,8 +1,10 @@
 package arg
 
 import (
+  "fmt"
   "github.com/xpwu/go-cmd/exe"
   "github.com/xpwu/go-config/configs"
+  "os"
   "path/filepath"
 )
 
@@ -35,6 +37,10 @@ func ReadConfig(arg *Arg, opts... Options) {
     }
 
     configs.SetConfigurator(&configs.JsonConfig{ReadFile: config})
-    configs.Read()
+    err := configs.ReadWithErr()
+    if err != nil {
+      fmt.Println(err)
+      os.Exit(-1)
+    }
   })
 }

@@ -1,10 +1,12 @@
 package printconf
 
 import (
+  "fmt"
   "github.com/xpwu/go-cmd/arg"
   "github.com/xpwu/go-cmd/cmd"
   "github.com/xpwu/go-cmd/exe"
   "github.com/xpwu/go-config/configs"
+  "os"
   "path/filepath"
 )
 
@@ -17,6 +19,10 @@ func init() {
       argR = filepath.Join(exe.Exe.AbsDir, argR)
     }
     configs.SetConfigurator(&configs.JsonConfig{PrintFile: argR})
-    configs.Print()
+    err := configs.Print()
+    if err != nil {
+      fmt.Println(err)
+      os.Exit(-1)
+    }
   })
 }

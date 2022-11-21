@@ -6,6 +6,7 @@ import (
   "github.com/xpwu/go-cmd/cmd"
   "github.com/xpwu/go-cmd/exe"
   "github.com/xpwu/go-config/configs"
+  "os"
   "path/filepath"
 )
 
@@ -18,6 +19,11 @@ func init() {
       argR = filepath.Join(exe.Exe.AbsDir, argR)
     }
     configs.SetConfigurator(&configs.JsonConfig{ReadFile: argR})
-    fmt.Print(configs.Valid())
+    err := configs.Valid()
+    if err != nil {
+      fmt.Println(err)
+      os.Exit(-1)
+    }
+    fmt.Println("the config file is valid")
   })
 }
