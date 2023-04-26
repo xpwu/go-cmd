@@ -1,26 +1,30 @@
 package clientcli
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"github.com/xpwu/go-cmd/arg"
+	_ "github.com/xpwu/go-cmd/cmd/interactive"
 	"github.com/xpwu/go-cmd/interac"
-	_ "github.com/xpwu/go-cmd/interac"
 	"github.com/xpwu/go-log/log"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// Response end: blank line.  space tab etc are not blank line. only ^\n$ is blank line
 
 type Response = string
 type Listener = func(args *arg.Arg) Response
 
 func format(len, maxLen int) string {
-	format := "		%s"
+	format := "    %s"
 	for i := maxLen - len + 2; i > 0; i-- {
-		format += "	"
+		format += " "
 	}
 	format += ": %s\n"
 
@@ -28,7 +32,7 @@ func format(len, maxLen int) string {
 }
 
 func usage(args *arg.Arg) Response {
-	ret := fmt.Sprintf("\nUsage:\n		<command> [arguments]\n\nThe commands are: \n\n")
+	ret := fmt.Sprintf("Usage:\n    <command> [arguments]\n \nThe commands are: \n \n")
 
 	maxLen := 0
 	keys := make([]string, 0, len(helps))
@@ -47,25 +51,40 @@ func usage(args *arg.Arg) Response {
 		ret += fmt.Sprintf(format(len(k), maxLen), k, helps[k])
 	}
 
-	ret += fmt.Sprintf("\n		\" <command> -h\" for more information about the command.\n\n")
+	ret += fmt.Sprintf(" \n    \" <command> -h\" for more information about the command.\n")
 
 	return ret
 }
 
-var cmds = map[string]Listener{
-	"-h":   usage,
-	"help": usage,
-	"hello": func(args *arg.Arg) Response {
-		return "connected, server's pid = " + strconv.Itoa(os.Getpid()) + usage(args)
-	},
+var (
+	cmds    = map[string]Listener{}
+	helps   = map[string]string{}
+	running = false
+
+	mu = sync.Mutex{}
+)
+
+func initV() {
+	cmds = map[string]Listener{
+		"-h":   usage,
+		"help": usage,
+		"hello": func(args *arg.Arg) Response {
+			return "connected, server's pid = " + strconv.Itoa(os.Getpid()) + "\n" + usage(args)
+		},
+	}
+
+	helps = map[string]string{
+		"help": "show this help info",
+	}
+
+	running = false
 }
 
-var helps = map[string]string{
-	"help": "show this help info",
+func init() {
+	initV()
 }
 
-var running = false
-
+// dont lock
 func run(ctx context.Context) {
 	ctx, logger := log.WithCtx(ctx)
 
@@ -76,6 +95,7 @@ func run(ctx context.Context) {
 	clientChan, err := interac.ChanFromClient(ctx)
 	if err != nil {
 		logger.Error(err)
+		running = false
 		return
 	}
 
@@ -85,6 +105,10 @@ func run(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
+				mu.Lock()
+				initV()
+				mu.Unlock()
+
 				return
 
 			case req := <-clientChan:
@@ -93,34 +117,46 @@ func run(ctx context.Context) {
 					req.Response <- usage(nil)
 					break
 				}
+				mu.Lock()
 				cmd, ok := cmds[f[0]]
+				mu.Unlock()
+
 				if !ok {
 					req.Response <- usage(nil)
 					break
 				}
 				args := arg.NewArg(f[0], f[1:])
 				args.FlagSet.Init(f[0], flag.ContinueOnError)
+				buf := &bytes.Buffer{}
+				args.FlagSet.SetOutput(buf)
 
-				req.Response <- cmd(args)
+				cmdRet := cmd(args)
+				fOut := buf.String()
+				if len(fOut) != 0 {
+					cmdRet += " \n" + fOut
+				}
+				req.Response <- cmdRet
 			}
 		}
 	}()
 }
 
-// 不是协程安全的
-
 func Listen(ctx context.Context, cmdName string, help string, ln Listener) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	tryName := cmdName
 	for i := 0; ; i++ {
-		_, ok := cmds[cmdName]
+		_, ok := cmds[tryName]
 		if !ok {
 			break
 		}
 
-		cmdName = fmt.Sprintf("%s%d", cmdName, i)
+		tryName = fmt.Sprintf("%s%d", cmdName, i)
 	}
 
-	cmds[cmdName] = ln
-	helps[cmdName] = help
+	cmds[tryName] = ln
+	helps[tryName] = help
 
 	run(ctx)
 }

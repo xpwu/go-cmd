@@ -41,7 +41,7 @@ func client() {
 		os.Exit(1)
 	}
 	fmt.Println(out)
-	fmt.Print("\n> ")
+	fmt.Print("> ")
 
 	input := bufio.NewScanner(os.Stdin)
 	for input.Scan() {

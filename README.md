@@ -52,13 +52,9 @@ init()时还没有读取到config值
 可以获取执行文件的 绝对路径 、 名字 
 
 
-### interactive
+### client-cli
 可以添加服务程序的交互式访问的客户端，   
-1、项目中添加  
-```
-_ "github.com/xpwu/go-cmd/cmd/interactive"
-```
-2、在服务程序中，通过 interac.ChanFromClientByPID() 获取与客户端通信的chan   
+调用clientcli.Listen(xxx)函数即可。 
 
 * 使用：   
 1、启动服务；2、使用 './xxx client' 命令启动此服务的客户端模式，即可通信。

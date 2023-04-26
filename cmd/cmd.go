@@ -69,16 +69,17 @@ func RegisterCmd(cmdName string, help string, cmd Cmd) {
 		return
 	}
 
+	tryName := cmdName
 	for i := 0; ; i++ {
-		_, ok := cmds[cmdName]
+		_, ok := cmds[tryName]
 		if !ok {
 			break
 		}
 
-		cmdName = fmt.Sprintf("%s%d", cmdName, i)
+		tryName = fmt.Sprintf("%s%d", cmdName, i)
 	}
-	cmds[cmdName] = cmd
-  helps[cmdName] = help
+	cmds[tryName] = cmd
+  helps[tryName] = help
 }
 
 func RegisterCmdNoArgs(cmdName string, help string, cmd func()) {

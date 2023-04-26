@@ -6,6 +6,7 @@ import (
 	"github.com/xpwu/go-cmd/exe"
 	"github.com/xpwu/go-log/log"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -19,11 +20,14 @@ type Request struct {
 	Response chan<- string
 }
 
-// only call once
+// ChanFromClient don't call twice, before ctx.Done
 func ChanFromClient(ctx context.Context) (ch <-chan Request, err error) {
 	ctx, logger := log.WithCtx(ctx)
 
-	unixAddr, _ := net.ResolveUnixAddr("unix", unixSocketFile())
+	uf := unixSocketFile()
+	_ = os.Remove(uf)
+
+	unixAddr, _ := net.ResolveUnixAddr("unix", uf)
 	unixListener, err := net.ListenUnix("unix", unixAddr)
 
 	ret := make(chan Request, 10)
@@ -32,6 +36,7 @@ func ChanFromClient(ctx context.Context) (ch <-chan Request, err error) {
 		logger.Error("ListenUnix error! CAN NOT USE interactive, error: ", err)
 		return nil, err
 	}
+	logger.Debug("ListenUnix ok.")
 
 	go func() {
 		for {
@@ -50,6 +55,8 @@ func ChanFromClient(ctx context.Context) (ch <-chan Request, err error) {
 			select {
 			case <-ctx.Done():
 				_ = unixListener.Close()
+				logger.Debug("ListenUnix closed.")
+				return
 			}
 		}
 	}()
