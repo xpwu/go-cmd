@@ -1,160 +1,198 @@
 package interac
 
 import (
-  "bufio"
-  "github.com/xpwu/go-cmd/pid"
-  "github.com/xpwu/go-log/log"
-  "io"
-  "net"
-  "os"
-  "path/filepath"
-  "strings"
+	"bufio"
+	"context"
+	"github.com/xpwu/go-cmd/exe"
+	"github.com/xpwu/go-log/log"
+	"net"
+	"path/filepath"
+	"strings"
 )
 
-//  客户端以 \n 为标记，作为一次发送；服务器以io.EOF的接收作为一次发送
-
-func getFilePath (key string) (file string,err error)  {
-  key, err = filepath.Abs(key)
-  if err != nil {
-    return "", err
-  }
-
-  if err = os.MkdirAll(key, 0777); err != nil {
-    log.Error("mkdir unix-socket error! CAN NOT USE interactive, error: ", err)
-    return
-  }
-
-  file = filepath.Join(key, ".unix_socket")
-
-  return
+func unixSocketFile() string {
+	return filepath.Join(exe.Exe.AbsDir, "." + exe.Exe.Name + ".unix_socket_for_client_cmd")
 }
 
-type RequestChan struct {
-  Request  string
-  Response chan<- string
+type Request struct {
+	Content  string
+	Response chan<- string
 }
 
-func ChanFromClient(key string) <-chan RequestChan {
-  file,_ := getFilePath(key)
-  unixAddr, _ := net.ResolveUnixAddr("unix", file)
-  unixListener, err := net.ListenUnix("unix", unixAddr)
+// only call once
+func ChanFromClient(ctx context.Context) (ch <-chan Request, err error) {
+	ctx, logger := log.WithCtx(ctx)
 
-  ret := make(chan RequestChan)
+	unixAddr, _ := net.ResolveUnixAddr("unix", unixSocketFile())
+	unixListener, err := net.ListenUnix("unix", unixAddr)
 
-  if err != nil {
-    log.Error("ListenUnix error! CAN NOT USE interactive, error: ", err)
-    return ret
-  }
+	ret := make(chan Request, 10)
 
-  go func() {
-    for {
-      // 不让退出
-      doConn(unixListener, ret)
-    }
-  }()
+	if err != nil {
+		logger.Error("ListenUnix error! CAN NOT USE interactive, error: ", err)
+		return nil, err
+	}
 
-  return ret
+	go func() {
+		for {
+			unixConn, err := unixListener.AcceptUnix()
+			if err != nil {
+				logger.Error(err)
+				return
+			}
+
+			go doConn(ctx, unixConn, ret)
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				_ = unixListener.Close()
+			}
+		}
+	}()
+
+	return ret, nil
 }
 
-func ChanFromClientByPID() <-chan RequestChan {
-  err := pid.Write(os.Getpid())
-  pd, err := pid.Read()
-  if err != nil {
-    log.Error("write or read pid error ", err)
-    return nil
-  }
-  return ChanFromClient(pd)
+func addBlankLine(request string) string {
+	for len(request) > 0 && request[len(request)-1] == '\n' {
+		request = strings.TrimSuffix(request, "\n")
+	}
+	if len(request) == 0 {
+		request += "\n"
+	} else {
+		request += "\n\n"
+	}
+
+	return request
 }
 
-func ChanFromServer(key string) chan<- RequestChan {
+func readAll(reader *bufio.Reader) (ret string, err error) {
+	allMsg := ""
+	for {
+		msg, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
 
-  ret := make(chan RequestChan)
+		// blank line
+		if msg == "\n" {
+			break
+		}
 
-  file,_ := getFilePath(key)
+		allMsg += msg
+	}
 
-  go func() {
-  forLabel:
-    for {
-      select {
-      case req,ok := <-ret:
-        if !ok {
-          break forLabel
-        }
-        unixAddr, err := net.ResolveUnixAddr("unix", file)
-        if err != nil {
-          log.Error(err)
-          close(req.Response)
-          break
-        }
-        conn,err := net.DialUnix("unix", nil, unixAddr)
-        if err != nil {
-          log.Error("DialUnix error! error: ", err)
-          close(req.Response)
-          break
-        }
-        _,err = conn.Write([]byte(req.Request))
-        if err != nil {
-          log.Error("Write error! error: ", err)
-          close(req.Response)
-          break
-        }
-
-        reader := bufio.NewReader(conn)
-        allMsg := ""
-        for {
-          msg, err := reader.ReadString('\n')
-          if err == nil {
-            allMsg += msg
-            continue
-          }
-          if err != nil && err != io.EOF {
-            log.Error("Read error! error: ", err)
-            close(req.Response)
-            break forLabel
-          }
-          break
-        }
-
-        req.Response <- strings.TrimRight(allMsg, "\n")
-      }
-    }
-  }()
-
-  return ret
+	return allMsg, nil
 }
 
-func doConn(unixListener *net.UnixListener, ret chan RequestChan) {
-  defer func() {
-    if r := recover(); r != nil {
-      // nothing to do
-    }
-  }()
+// long connection. one-request-one-response
+// end：blank line, \n
 
-  for {
-    unixConn, err := unixListener.AcceptUnix()
-    if err != nil {
-      log.Warning(err)
-      continue
-    }
+// ChanFromServer close(ch.Response): read/writer error
+func ChanFromServer(ctx context.Context) (ch chan<- Request, err error) {
+	ctx, logger := log.WithCtx(ctx)
 
-    reader := bufio.NewReader(unixConn)
-    message, err := reader.ReadString('\n')
-    if err != nil {
-      log.Warning(err)
-      continue
-    }
+	ret := make(chan Request)
 
-    response := make(chan string)
-    ret <- RequestChan{
-      Request:  message,
-      Response: response,
-    }
-    res := <- response
-    _,err = unixConn.Write([]byte(res + "\n"))
-    if err != nil {
-      log.Warning(err)
-    }
-    close(response)
-    _ = unixConn.Close()
-  }
+	unixAddr, err := net.ResolveUnixAddr("unix", unixSocketFile())
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.DialUnix("unix", nil, unixAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				_ = conn.Close()
+			}
+		}
+	}()
+
+	go func() {
+
+	forLabel:
+		for {
+			select {
+			case req, ok := <-ret:
+				if !ok {
+					break forLabel
+				}
+
+				request := addBlankLine(req.Content)
+
+				_, err = conn.Write([]byte(request))
+				if err != nil {
+					logger.Error("Write error! ", err)
+					close(req.Response)
+					break forLabel
+				}
+
+				reader := bufio.NewReader(conn)
+				allMsg, err := readAll(reader)
+				if err != nil {
+					logger.Error("Read error! error: ", err)
+					close(req.Response)
+					break forLabel
+				}
+
+				req.Response <- allMsg
+			}
+		}
+	}()
+
+	return ret, nil
+}
+
+func doConn(ctx context.Context, unixConn *net.UnixConn, ret chan<- Request) {
+	ctx, logger := log.WithCtx(ctx)
+
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error(r)
+		}
+		_ = unixConn.Close()
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				_ = unixConn.Close()
+			}
+		}
+	}()
+
+	reader := bufio.NewReader(unixConn)
+
+	for {
+		allMsg, err := readAll(reader)
+		if err != nil {
+			logger.Warning(err)
+			break
+		}
+
+		response := make(chan string, 1)
+		ret <- Request{
+			Content:  allMsg,
+			Response: response,
+		}
+		res := <-response
+
+		res = addBlankLine(res)
+
+		_, err = unixConn.Write([]byte(res))
+		if err != nil {
+			logger.Warning(err)
+			break
+		}
+	}
 }

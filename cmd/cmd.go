@@ -45,7 +45,7 @@ func usage(args *arg.Arg) {
   }
 
   _,_ = fmt.Fprintf(usageOutput,
-    "\nUse \"%s <command> -h\" for more information about a command.\n\n", os.Args[0])
+    "\nUse \"%s <command> -h\" for more information about the command.\n\n", os.Args[0])
 
 }
 
@@ -79,6 +79,13 @@ func RegisterCmd(cmdName string, help string, cmd Cmd) {
 	}
 	cmds[cmdName] = cmd
   helps[cmdName] = help
+}
+
+func RegisterCmdNoArgs(cmdName string, help string, cmd func()) {
+	RegisterCmd(cmdName, help, func(args *arg.Arg) {
+		args.Parse()
+		cmd()
+	})
 }
 
 func Run() {

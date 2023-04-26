@@ -57,9 +57,19 @@ func (a *Arg) AddCallBack(f func()) {
 }
 
 func (a *Arg) Parse() {
-  _ = a.FlagSet.Parse(a.args)
+	// ignore error, not panic
+	_ = a.ParseErr()
+}
 
-  for _,f := range a.callbacks {
-    f()
-  }
+func (a *Arg) ParseErr() error {
+	err := a.FlagSet.Parse(a.args)
+	if err != nil {
+		return err
+	}
+
+	for _,f := range a.callbacks {
+		f()
+	}
+
+	return nil
 }
