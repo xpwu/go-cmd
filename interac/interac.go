@@ -12,7 +12,7 @@ import (
 )
 
 func unixSocketFile() string {
-	return filepath.Join(exe.Exe.AbsDir, "." + exe.Exe.Name + ".unix_socket_for_client_cmd")
+	return filepath.Join(exe.Exe.AbsDir, "."+exe.Exe.Name+".unix_socket_for_client_cmd")
 }
 
 type Request struct {
@@ -51,13 +51,10 @@ func ChanFromClient(ctx context.Context) (ch <-chan Request, err error) {
 	}()
 
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				_ = unixListener.Close()
-				logger.Debug("ListenUnix closed.")
-				return
-			}
+		select {
+		case <-ctx.Done():
+			_ = unixListener.Close()
+			logger.Debug("ListenUnix closed.")
 		}
 	}()
 
@@ -116,11 +113,9 @@ func ChanFromServer(ctx context.Context) (ch chan<- Request, err error) {
 	}
 
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				_ = conn.Close()
-			}
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
 		}
 	}()
 
@@ -170,11 +165,9 @@ func doConn(ctx context.Context, unixConn *net.UnixConn, ret chan<- Request) {
 	}()
 
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				_ = unixConn.Close()
-			}
+		select {
+		case <-ctx.Done():
+			_ = unixConn.Close()
 		}
 	}()
 
