@@ -51,9 +51,14 @@ func (a *Arg) Duration(defaultValue *time.Duration, name string, usage string) {
   a.FlagSet.DurationVar(defaultValue, name, *defaultValue, usage)
 }
 
-// Parse 执行后，自动执行所有添加的callback
+// AddParseHook Parse 执行后，自动执行所有添加的 Hook
+func (a *Arg) AddParseHook(f func()) {
+	a.callbacks = append(a.callbacks, f)
+}
+
+// Deprecated: AddCallBack using: AddParseHook
 func (a *Arg) AddCallBack(f func()) {
-  a.callbacks = append(a.callbacks, f)
+	a.AddParseHook(f)
 }
 
 func (a *Arg) Parse() {

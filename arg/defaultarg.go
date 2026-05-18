@@ -20,7 +20,12 @@ func Name(v string) Options {
   }
 }
 
+// Deprecated: ReadConfig using: HookReadConfigTo
 func ReadConfig(arg *Arg, opts... Options) {
+	HookReadConfigTo(arg, opts...)
+}
+
+func HookReadConfigTo(arg *Arg, opts... Options) {
   opt := &option{
     name: "c",
   }
@@ -31,7 +36,7 @@ func ReadConfig(arg *Arg, opts... Options) {
   config := "config.json"
   arg.String(&config, opt.name, "config file path")
 
-  arg.AddCallBack(func() {
+  arg.AddParseHook(func() {
     if !filepath.IsAbs(config) {
       config = filepath.Join(exe.Exe.AbsDir, config)
     }
