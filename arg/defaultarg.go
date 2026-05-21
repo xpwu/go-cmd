@@ -1,51 +1,61 @@
 package arg
 
 import (
-  "fmt"
-  "github.com/xpwu/go-cmd/exe"
-  "github.com/xpwu/go-config/configs"
-  "os"
-  "path/filepath"
+	"fmt"
+	"github.com/xpwu/go-cmd/exe"
+	"github.com/xpwu/go-config/configs"
+	"os"
+	"path/filepath"
 )
 
-type option struct {
-  name string
+type readConfigOption struct {
+	name string
 }
 
-type Options func(o *option)
+type ReadConfigOption func(o *readConfigOption)
 
-func Name(v string) Options {
-  return func(o *option) {
-    o.name = v
-  }
+// Deprecated: Options using: ReadConfigOption
+type Options = ReadConfigOption
+
+// Deprecated: Name using: ConfigFlag
+func Name(v string) ReadConfigOption {
+	return func(o *readConfigOption) {
+		o.name = v
+	}
+}
+
+func ConfigFlag(v string) ReadConfigOption {
+	return func(o *readConfigOption) {
+		o.name = v
+	}
 }
 
 // Deprecated: ReadConfig using: HookReadConfigTo
-func ReadConfig(arg *Arg, opts... Options) {
+func ReadConfig(arg *Arg, opts ...ReadConfigOption) {
 	HookReadConfigTo(arg, opts...)
 }
 
-func HookReadConfigTo(arg *Arg, opts... Options) {
-  opt := &option{
-    name: "c",
-  }
-  for _,o := range opts {
-    o(opt)
-  }
+func HookReadConfigTo(arg *Arg, opts ...ReadConfigOption) {
+	opt := &readConfigOption{
+		name: "c",
+	}
+	for _, o := range opts {
+		o(opt)
+	}
 
-  config := "config.json"
-  arg.String(&config, opt.name, "config file path")
+	config := "config.json"
+	arg.String(&config, opt.name, "config file path")
 
-  arg.AddParseHook(func() {
-    if !filepath.IsAbs(config) {
-      config = filepath.Join(exe.Exe.AbsDir, config)
-    }
+	arg.AddParseHook(func() {
+		if !filepath.IsAbs(config) {
+			config = filepath.Join(exe.Exe.AbsDir, config)
+		}
 
-    configs.SetConfigurator(&configs.JsonConfig{ReadFile: config})
-    err := configs.ReadWithErr()
-    if err != nil {
-      fmt.Println(err)
-      os.Exit(-1)
-    }
-  })
+		configs.SetConfigurator(&configs.JsonConfig{ReadFile: config})
+		err := configs.ReadWithErr()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
+	})
 }
