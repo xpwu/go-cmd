@@ -54,7 +54,6 @@ func (a *Arg) Duration(defaultValue *time.Duration, name string, usage string) {
 	a.FlagSet.DurationVar(defaultValue, name, *defaultValue, usage)
 }
 
-// AddParseHook Parse 执行后，自动执行所有添加的 Hook
 func (a *Arg) AddParseHook(f func()) {
 	a.callbacks = append(a.callbacks, f)
 }
@@ -64,13 +63,13 @@ func (a *Arg) AddCallBack(f func()) {
 	a.AddParseHook(f)
 }
 
-func (a *Arg) Parse() {
+func (a *Arg) ParseAndRunHook() {
 	// ignore error, not panic
-	_ = a.ParseErr()
+	_ = a.ParseAndRunHookErr()
 }
 
-// ParseErr All args must be parsed
-func (a *Arg) ParseErr() error {
+// ParseAndRunHookErr All args must be parsed
+func (a *Arg) ParseAndRunHookErr() error {
 	err := a.FlagSet.Parse(a.args)
 	if err != nil {
 		return err
@@ -102,4 +101,14 @@ func (a *Arg) ParseErr() error {
 	}
 
 	return nil
+}
+
+// Deprecated: Parse using: ParseAndRunHook
+func (a *Arg) Parse() {
+	a.ParseAndRunHook()
+}
+
+// Deprecated: ParseErr using: ParseAndRunHookErr
+func (a *Arg) ParseErr() error {
+	return a.ParseAndRunHookErr()
 }

@@ -163,7 +163,7 @@ func Listen(ctx context.Context, cmdName string, help string, ln Listener) {
 
 func ListenNoArg(ctx context.Context, cmdName string, help string, ln func() Response) {
 	Listen(ctx, cmdName, help, func(args *arg.Arg) Response {
-		args.Parse()
+		args.ParseAndRunHook()
 		return ln()
 	})
 }
