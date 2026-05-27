@@ -1,20 +1,15 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"github.com/xpwu/go-cmd/arg"
-	"io"
 	"os"
 	"sort"
+	"strings"
 )
 
 type Cmd func(args *arg.Arg)
-
-var usageOutput io.Writer = os.Stderr
-
-func SetUsageOutput(output io.Writer) {
-	usageOutput = output
-}
 
 func format(len, maxLen int) string {
 	format := "        %s"
@@ -26,10 +21,10 @@ func format(len, maxLen int) string {
 	return format
 }
 
-func usage(args *arg.Arg) {
-	_, _ = fmt.Fprintf(usageOutput,
-		"\nUsage:\n\n        %s <command> [arguments]\n\nThe commands are: (the default command is %s) \n\n",
-		os.Args[0], DefaultCmdName)
+func usage(builder *strings.Builder) {
+	_, _ = fmt.Fprintf(builder,
+		"\nUsage:\n\n        %s <command> [arguments]\n\nThe commands are: (the default command is '%s') \n\n",
+		os.Args[0], KeepAliveCmd)
 
 	maxLen := 0
 	keys := make([]string, 0, len(helps))
@@ -45,34 +40,59 @@ func usage(args *arg.Arg) {
 	})
 
 	for _, k := range keys {
-		_, _ = fmt.Fprintf(usageOutput, format(len(k), maxLen), k, helps[k])
+		_, _ = fmt.Fprintf(builder, format(len(k), maxLen), k, helps[k])
 	}
 
-	_, _ = fmt.Fprintf(usageOutput,
+	_, _ = fmt.Fprintf(builder,
 		"\nUse \"%s <command> -h\" for more information about the command.\n\n", os.Args[0])
 
 }
 
-var cmds = map[string]Cmd{
-	"-h":   usage,
-	"help": usage,
-	DefaultCmdName: func(args *arg.Arg) {
-		_, _ = fmt.Fprintln(usageOutput, "Error: Did NOT Register 'run'(DefaultCmdName) command")
-	},
+var helpCmds = map[string]struct{}{
+	"-h":     {},
+	"-help":  {},
+	"--help": {},
+	"help":   {},
 }
 
-var helps = map[string]string{
-	DefaultCmdName: "<not implement>",
-}
+var cmds = map[string]Cmd{}
 
-const DefaultCmdName = "run"
+var helps = map[string]string{}
+
+// Deprecated: DefaultCmdName using: KeepAliveCmd
+const DefaultCmdName = KeepAliveCmd
+
+// KeepAliveCmd keep process alive and  is also default cmd
+const KeepAliveCmd = "run"
 
 func RegisterCmd(cmdName string, help string, cmd Cmd) {
-	// run 命令直接替换
-	if cmdName == DefaultCmdName {
-		cmds[cmdName] = cmd
-		helps[cmdName] = help
-		return
+	err := RegisterCmdErr(cmdName, help, cmd)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(2)
+	}
+}
+
+func RegisterCmdErr(cmdName string, help string, cmd Cmd) error {
+	// replace KeepAliveCmd directly
+	if cmdName == KeepAliveCmd {
+		cmds[KeepAliveCmd] = func(args *arg.Arg) {
+			cmd(args)
+
+			// keep process alive
+			exit := make(chan struct{})
+			<-exit
+		}
+		helps[KeepAliveCmd] = help
+		return nil
+	}
+
+	if cmdName[0] == '-' {
+		return errors.New("Error: cmdName can NOT start with '-'\n")
+	}
+
+	if _, ok := helpCmds[cmdName]; ok {
+		return errors.New("Error: Not Register 'help' cmd\n")
 	}
 
 	tryName := cmdName
@@ -86,35 +106,73 @@ func RegisterCmd(cmdName string, help string, cmd Cmd) {
 	}
 	cmds[tryName] = cmd
 	helps[tryName] = help
+
+	return nil
 }
 
 func RegisterCmdNoArgs(cmdName string, help string, cmd func()) {
 	RegisterCmd(cmdName, help, func(args *arg.Arg) {
-		args.Parse()
+		args.ParseAndRunHook()
 		cmd()
 	})
 }
 
+func fail(err string) error {
+	builder := &strings.Builder{}
+	_, _ = fmt.Fprintln(builder, err)
+	usage(builder)
+	return errors.New(builder.String())
+}
+
+type HelpErr error
+
+func help() HelpErr {
+	builder := &strings.Builder{}
+	usage(builder)
+	return errors.New(builder.String())
+}
+
 func Run() {
+	err := RunErr()
+	_, _ = fmt.Fprintln(os.Stderr, err.Error())
+	if _, ok := err.(HelpErr); ok {
+		os.Exit(0)
+	}
+	os.Exit(2)
+}
+
+func RunErr() error {
+
 	args := os.Args[1:]
 	if len(args) == 0 {
-		if cmd, ok := cmds[DefaultCmdName]; ok {
+		if cmd, ok := cmds[KeepAliveCmd]; ok {
 			cmd(arg.NewArg(os.Args[0], args))
+			return nil
 		}
-		return
+
+		return fail("Error: No command specified or NOT Register 'run'(default) command")
 	}
 
-	tryCmd := args[0]
+	cmdName := args[0]
 
-	if cmd, ok := cmds[tryCmd]; ok {
-		cmd(arg.NewArg(os.Args[0]+" "+tryCmd+" ", args[1:]))
-		return
+	if _, ok := helpCmds[cmdName]; ok {
+		return help()
 	}
 
-	// default
-	cmd, ok := cmds[DefaultCmdName]
-	if !ok {
-		return
+	// cmdName is an argument
+	if cmdName[0] == '-' {
+		if cmd, ok := cmds[KeepAliveCmd]; ok {
+			cmd(arg.NewArg(os.Args[0], args))
+			return nil
+		}
+
+		return fail("Error: NOT Register 'run'(default) command")
 	}
-	cmd(arg.NewArg(args[0], args))
+
+	if cmd, ok := cmds[cmdName]; ok {
+		cmd(arg.NewArg(os.Args[0]+" "+cmdName+" ", args[1:]))
+		return nil
+	}
+
+	return fail("Error: NOT Register '" + cmdName + "' command")
 }
