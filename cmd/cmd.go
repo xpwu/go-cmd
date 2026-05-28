@@ -12,19 +12,21 @@ import (
 type Cmd func(args *arg.Arg)
 
 func format(len, maxLen int) string {
-	format := "        %s"
+	format := "  %s"
 	for i := maxLen - len + 2; i > 0; i-- {
 		format += " "
 	}
-	format += ": %s\n"
+	format += "%s\n"
 
 	return format
 }
 
+var exeNameInUsage = os.Args[0]
+
 func usage(builder *strings.Builder) {
 	_, _ = fmt.Fprintf(builder,
-		"\nUsage:\n\n        %s <command> [arguments]\n\nThe commands are: (the default command is '%s') \n\n",
-		os.Args[0], KeepAliveCmd)
+		"Usage: %s <command> [arguments]\nThe valid 'commands' are: (the default command is '%s')\n",
+		exeNameInUsage, KeepAliveCmd)
 
 	maxLen := 0
 	keys := make([]string, 0, len(helps))
@@ -44,7 +46,8 @@ func usage(builder *strings.Builder) {
 	}
 
 	_, _ = fmt.Fprintf(builder,
-		"\nUse \"%s <command> -h\" for more information about the command.\n\n", os.Args[0])
+		"Every 'argument' starts with '-'.\n"+
+			"Use \"%s <command> -h\" for more information about the command.\n", exeNameInUsage)
 
 }
 
@@ -124,18 +127,23 @@ func fail(err string) error {
 	return errors.New(builder.String())
 }
 
-type HelpErr error
+type HelpErr string
 
-func help() HelpErr {
+func (e *HelpErr) Error() string {
+	return string(*e)
+}
+
+func help() *HelpErr {
 	builder := &strings.Builder{}
 	usage(builder)
-	return errors.New(builder.String())
+	ret := HelpErr(builder.String())
+	return &ret
 }
 
 func Run() {
 	err := RunErr()
 	_, _ = fmt.Fprintln(os.Stderr, err.Error())
-	if _, ok := err.(HelpErr); ok {
+	if _, ok := err.(*HelpErr); ok {
 		os.Exit(0)
 	}
 	os.Exit(2)
