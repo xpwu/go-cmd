@@ -68,13 +68,18 @@ const DefaultCmdName = KeepAliveCmd
 // KeepAliveCmd keep process alive and  is also default cmd
 const KeepAliveCmd = "run"
 
+var osExit = os.Exit
+
 func RegisterCmd(cmdName string, help string, cmd Cmd) {
 	err := RegisterCmdErr(cmdName, help, cmd)
 	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(2)
+		_, _ = fmt.Fprint(os.Stderr, err.Error())
+		osExit(2)
 	}
 }
+
+var InvalidCmdNameErr = errors.New("Error: cmdName can NOT start with '-'\n")
+var ReservedCmdNameErr = errors.New("Error: Not Register 'help' cmd\n")
 
 func RegisterCmdErr(cmdName string, help string, cmd Cmd) error {
 	// replace KeepAliveCmd directly
@@ -90,12 +95,12 @@ func RegisterCmdErr(cmdName string, help string, cmd Cmd) error {
 		return nil
 	}
 
-	if cmdName[0] == '-' {
-		return errors.New("Error: cmdName can NOT start with '-'\n")
+	if _, ok := helpCmds[cmdName]; ok {
+		return ReservedCmdNameErr
 	}
 
-	if _, ok := helpCmds[cmdName]; ok {
-		return errors.New("Error: Not Register 'help' cmd\n")
+	if cmdName[0] == '-' {
+		return InvalidCmdNameErr
 	}
 
 	tryName := cmdName
@@ -142,11 +147,14 @@ func help() *HelpErr {
 
 func Run() {
 	err := RunErr()
-	_, _ = fmt.Fprintln(os.Stderr, err.Error())
-	if _, ok := err.(*HelpErr); ok {
-		os.Exit(0)
+	if err == nil {
+		return
 	}
-	os.Exit(2)
+	_, _ = fmt.Fprint(os.Stderr, err.Error())
+	if _, ok := err.(*HelpErr); ok {
+		osExit(0)
+	}
+	osExit(2)
 }
 
 func RunErr() error {

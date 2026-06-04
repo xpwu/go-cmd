@@ -1,5 +1,9 @@
 package cmd
 
-func SetExeNameInUsage(name string) {
+func SetExeNameInUsageForTesting(name string) {
 	exeNameInUsage = name
+}
+
+func SetOsExitForTesting(exit func(code int)) {
+	osExit = exit
 }
