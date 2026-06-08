@@ -26,7 +26,7 @@ var exeNameInUsage = os.Args[0]
 func usage(builder *strings.Builder) {
 	_, _ = fmt.Fprintf(builder,
 		"Usage: %s <command> [arguments]\nThe valid 'commands' are: (the default command is '%s')\n",
-		exeNameInUsage, KeepAliveCmd)
+		exeNameInUsage, DefaultCmdName)
 
 	maxLen := 0
 	keys := make([]string, 0, len(helps))
@@ -62,13 +62,17 @@ var cmds = map[string]Cmd{}
 
 var helps = map[string]string{}
 
-// Deprecated: DefaultCmdName using: KeepAliveCmd
-const DefaultCmdName = KeepAliveCmd
-
-// KeepAliveCmd keep process alive and  is also default cmd
-const KeepAliveCmd = "run"
+const DefaultCmdName = "run"
 
 var osExit = os.Exit
+
+func RegisterKeepAliveCmd(cmdName string, help string, cmd Cmd) {
+	err := RegisterKeepAliveCmdErr(cmdName, help, cmd)
+	if err != nil {
+		_, _ = fmt.Fprint(os.Stderr, err.Error())
+		osExit(2)
+	}
+}
 
 func RegisterCmd(cmdName string, help string, cmd Cmd) {
 	err := RegisterCmdErr(cmdName, help, cmd)
@@ -81,17 +85,22 @@ func RegisterCmd(cmdName string, help string, cmd Cmd) {
 var InvalidCmdNameErr = errors.New("Error: cmdName can NOT start with '-'\n")
 var ReservedCmdNameErr = errors.New("Error: Not Register 'help' cmd\n")
 
-func RegisterCmdErr(cmdName string, help string, cmd Cmd) error {
-	// replace KeepAliveCmd directly
-	if cmdName == KeepAliveCmd {
-		cmds[KeepAliveCmd] = func(args *arg.Arg) {
-			cmd(args)
+var exitKeepAlive = make(chan struct{})
 
-			// keep process alive
-			exit := make(chan struct{})
-			<-exit
-		}
-		helps[KeepAliveCmd] = help
+func RegisterKeepAliveCmdErr(cmdName string, help string, cmd Cmd) error {
+	return RegisterCmdErr(cmdName, help, func(args *arg.Arg) {
+		cmd(args)
+
+		// keep process alive
+		<-exitKeepAlive
+	})
+}
+
+func RegisterCmdErr(cmdName string, help string, cmd Cmd) error {
+	// replace DefaultCmd directly
+	if cmdName == DefaultCmdName {
+		cmds[DefaultCmdName] = cmd
+		helps[DefaultCmdName] = help
 		return nil
 	}
 
@@ -116,6 +125,13 @@ func RegisterCmdErr(cmdName string, help string, cmd Cmd) error {
 	helps[tryName] = help
 
 	return nil
+}
+
+func RegisterKeepAliveCmdNoArgs(cmdName string, help string, cmd func()) {
+	RegisterKeepAliveCmd(cmdName, help, func(args *arg.Arg) {
+		args.ParseAndRunHook()
+		cmd()
+	})
 }
 
 func RegisterCmdNoArgs(cmdName string, help string, cmd func()) {
@@ -161,7 +177,7 @@ func RunErr() error {
 
 	args := os.Args[1:]
 	if len(args) == 0 {
-		if cmd, ok := cmds[KeepAliveCmd]; ok {
+		if cmd, ok := cmds[DefaultCmdName]; ok {
 			cmd(arg.NewArg(os.Args[0], args))
 			return nil
 		}
@@ -177,7 +193,7 @@ func RunErr() error {
 
 	// cmdName is an argument
 	if cmdName[0] == '-' {
-		if cmd, ok := cmds[KeepAliveCmd]; ok {
+		if cmd, ok := cmds[DefaultCmdName]; ok {
 			cmd(arg.NewArg(os.Args[0], args))
 			return nil
 		}

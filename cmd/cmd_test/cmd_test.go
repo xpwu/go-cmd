@@ -116,12 +116,12 @@ Use "cmd_test <command> -h" for more information about the command.
 		"\n"+readPipe(p))
 }
 
-type cmdInfo struct {
-	cmdName string
-	info    string
+type helpInfo struct {
+	name string
+	info string
 }
 
-func testCmdNameLess7HelpInfo(t *testing.T, helpName string, helps ...*cmdInfo) {
+func testCmdNameLess7HelpInfo(t *testing.T, helpName string, helps ...*helpInfo) {
 
 	a := assert.New(t)
 
@@ -129,16 +129,16 @@ func testCmdNameLess7HelpInfo(t *testing.T, helpName string, helps ...*cmdInfo) 
 	last := ""
 
 	for _, help := range helps {
-		if len(help.cmdName) >= 7 {
+		if len(help.name) >= 7 {
 			panic("len(cmdName) MUST be less 7 in func 'testCmdNameLess7HelpInfo' ")
 		}
-		if help.cmdName > "client" || help.cmdName < last {
+		if help.name > "client" || help.name < last {
 			panic("{$last} < cmdName < 'client' Not satisfied")
 		}
 
-		builder.WriteString("\n  " + help.cmdName + strings.Repeat(" ", 8-len(help.cmdName)) + help.info)
+		builder.WriteString("\n  " + help.name + strings.Repeat(" ", 8-len(help.name)) + help.info)
 
-		last = help.cmdName
+		last = help.name
 	}
 
 	cmd.SetExeNameInUsageForTesting("cmd_test")
@@ -177,46 +177,68 @@ func TestRunHelpExit0(t *testing.T) {
 }
 
 func TestRegisterAndHelpInfo(t *testing.T) {
-	c := &cmdInfo{"acmd", "for testing help"}
+	c := &helpInfo{"acmd", "for testing help"}
 	a := assert.New(t)
 
-	a.Nil(cmd.RegisterCmdErr(c.cmdName, c.info, func(args *arg.Arg) {
+	a.Nil(cmd.RegisterCmdErr(c.name, c.info, func(args *arg.Arg) {
 
 	}))
 
 	testCmdNameLess7HelpInfo(t, "-h", c)
 }
 
+var registerErrCases = []struct {
+	expectErr error
+	name      string
+}{{cmd.ReservedCmdNameErr, "help"},
+	{cmd.ReservedCmdNameErr, "-h"},
+	{cmd.ReservedCmdNameErr, "--help"},
+	{cmd.ReservedCmdNameErr, "--help"},
+	{cmd.InvalidCmdNameErr, "-c"}}
+
 func TestRegisterErr(t *testing.T) {
 	a := assert.New(t)
 
-	a.Equal(cmd.ReservedCmdNameErr,
-		cmd.RegisterCmdErr("help", "", func(args *arg.Arg) {
+	testFuncs := []func(name string) error{
+		func(name string) error { return cmd.RegisterCmdErr(name, "", func(args *arg.Arg) {}) },
+		func(name string) error { return cmd.RegisterKeepAliveCmdErr(name, "", func(args *arg.Arg) {}) },
+	}
 
-		}))
-
-	a.Equal(cmd.ReservedCmdNameErr,
-		cmd.RegisterCmdErr("-h", "", func(args *arg.Arg) {
-
-		}))
-
-	a.Equal(cmd.ReservedCmdNameErr,
-		cmd.RegisterCmdErr("--help", "", func(args *arg.Arg) {
-
-		}))
-
-	a.Equal(cmd.ReservedCmdNameErr,
-		cmd.RegisterCmdErr("--help", "", func(args *arg.Arg) {
-
-		}))
-
-	a.Equal(cmd.InvalidCmdNameErr,
-		cmd.RegisterCmdErr("-c", "", func(args *arg.Arg) {
-
-		}))
+	for _, cs := range registerErrCases {
+		for _, f := range testFuncs {
+			a.Equal(cs.expectErr, f(cs.name))
+		}
+	}
 }
 
-func testHelpInfoInclude(t *testing.T, help *cmdInfo) {
+func TestRegister(t *testing.T) {
+	a := assert.New(t)
+
+	testFuncs := []func(name string){func(name string) { cmd.RegisterCmd(name, "", func(args *arg.Arg) {}) },
+		func(name string) { cmd.RegisterKeepAliveCmd(name, "", func(args *arg.Arg) {}) },
+		func(name string) { cmd.RegisterCmdNoArgs(name, "", func() {}) },
+		func(name string) { cmd.RegisterKeepAliveCmdNoArgs(name, "", func() {}) },
+	}
+
+	for _, cs := range registerErrCases {
+		for _, f := range testFuncs {
+			func() {
+				p := &pipe{}
+				oldStdErr := redirectStdErrTo(p)
+				defer func() { os.Stderr = oldStdErr }()
+
+				setOsExitToPanic()
+				defer resetOsExit()
+				defer assertExitCode(a, 2)
+
+				f(cs.name)
+				a.Equal(cs.expectErr.Error(), readPipe(p))
+			}()
+		}
+	}
+}
+
+func testHelpInfoInclude(t *testing.T, help *helpInfo) {
 	a := assert.New(t)
 
 	cmd.SetExeNameInUsageForTesting("cmd_test")
@@ -237,27 +259,60 @@ func testHelpInfoInclude(t *testing.T, help *cmdInfo) {
 
 	re := regexp.MustCompile("^\\nUsage: cmd_test <command> \\[arguments]\\n" +
 		"The valid 'commands' are: \\(the default command is 'run'\\)[\\s\\S]*?" +
-		"  " + help.cmdName + ".*?  " + help.info + "[\\s\\S]*?" +
+		"  " + help.name + ".*?  " + help.info + "[\\s\\S]*?" +
 		"Every 'argument' starts with '-'.\\n" +
 		"Use \"cmd_test <command> -h\" for more information about the command.\\n$")
 
 	a.True(re.MatchString("\n" + readPipe(p)))
 }
 
-func TestRegisterACmd(t *testing.T) {
+func testArgInfoInclude(t *testing.T, cmdName string, help *helpInfo) {
 	a := assert.New(t)
 
-	c := &cmdInfo{"alpha", "for testing"}
+	cmd.SetExeNameInUsageForTesting("cmd_test")
+
+	p := &pipe{}
+	oldStdErr := redirectStdErrTo(p)
+	defer func() { os.Stderr = oldStdErr }()
+
+	oldArgs := setOsArgs(cmdName, "-h")
+	defer func() { os.Args = oldArgs }()
+
+	func() {
+		defer func() {
+			r := recover()
+			if exitInfo, ok := r.(string); ok {
+				a.Equal("unexpected call to os.Exit(0) during test", exitInfo)
+			} else {
+				panic(r)
+			}
+		}()
+
+		cmd.Run() // exit(0)
+	}()
+
+	re := regexp.MustCompile("^Usage of .*? " + cmdName + " :\\n" +
+		"  -" + help.name + "[\\s\\S]*?\\t" + help.info + "[\\s\\S]*?\\n$")
+
+	a.True(re.MatchString(readPipe(p)))
+}
+
+func TestRegisterCmd(t *testing.T) {
+	a := assert.New(t)
+
+	c := &helpInfo{"alpha", "for testing"}
+	argInfo := &helpInfo{"ok", "every is ok"}
 	ok := false
 
-	err := cmd.RegisterCmdErr(c.cmdName, c.info, func(args *arg.Arg) {
-		args.Bool(&ok, "ok", "every is ok")
+	err := cmd.RegisterCmdErr(c.name, c.info, func(args *arg.Arg) {
+		args.Bool(&ok, argInfo.name, argInfo.info)
 		args.ParseAndRunHook()
 	})
 
 	a.Nil(err)
 
 	testHelpInfoInclude(t, c)
+	testArgInfoInclude(t, c.name, argInfo)
 
 	func() {
 		oldArgs := setOsArgs("alpha", "-ok")
@@ -266,20 +321,14 @@ func TestRegisterACmd(t *testing.T) {
 
 		a.True(ok)
 	}()
-
-	//func() {
-	//	oldArgs := setOsArgs("alpha", "-h")
-	//	defer func() { os.Args = oldArgs }()
-	//	cmd.Run()
-	//}()
 }
 
-func TestRegisterKeepAliveCmd(t *testing.T) {
+func TestRegisterDefaultCmd(t *testing.T) {
 	a := assert.New(t)
 
-	c := &cmdInfo{cmd.KeepAliveCmd, "run for testing"}
+	c := &helpInfo{cmd.DefaultCmdName, "run for testing"}
 
-	err := cmd.RegisterCmdErr(c.cmdName, c.info, func(args *arg.Arg) {
+	err := cmd.RegisterCmdErr(c.name, c.info, func(args *arg.Arg) {
 
 	})
 
