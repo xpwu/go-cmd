@@ -113,7 +113,7 @@ func RegisterCmdErr(cmdName string, help string, cmd Cmd) error {
 	}
 
 	tryName := cmdName
-	for i := 0; ; i++ {
+	for i := 2; ; i++ {
 		_, ok := cmds[tryName]
 		if !ok {
 			break

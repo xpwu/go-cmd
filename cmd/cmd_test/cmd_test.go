@@ -291,7 +291,7 @@ func testArgInfoInclude(t *testing.T, cmdName string, help *helpInfo) {
 		cmd.Run() // exit(0)
 	}()
 
-	re := regexp.MustCompile("^Usage of .*? " + cmdName + " :\\n" +
+	re := regexp.MustCompile("^Usage of .*? " + cmdName + " :\\n" + "[\\s\\S]*?" +
 		"  -" + help.name + "[\\s\\S]*?\\t" + help.info + "[\\s\\S]*?\\n$")
 
 	a.True(re.MatchString(readPipe(p)))
@@ -300,26 +300,117 @@ func testArgInfoInclude(t *testing.T, cmdName string, help *helpInfo) {
 func TestRegisterCmd(t *testing.T) {
 	a := assert.New(t)
 
-	c := &helpInfo{"alpha", "for testing"}
-	argInfo := &helpInfo{"ok", "every is ok"}
+	normal := &helpInfo{"alpha", "for testing"}
+	normalArgInfo1 := &helpInfo{"ok", "every is ok"}
+	normalArgInfo2 := &helpInfo{"name", "user name"}
 	ok := false
-
-	err := cmd.RegisterCmdErr(c.name, c.info, func(args *arg.Arg) {
-		args.Bool(&ok, argInfo.name, argInfo.info)
+	name := "go-cmd"
+	err := cmd.RegisterCmdErr(normal.name, normal.info, func(args *arg.Arg) {
+		args.Bool(&ok, normalArgInfo1.name, normalArgInfo1.info)
+		args.String(&name, normalArgInfo2.name, normalArgInfo2.info)
 		args.ParseAndRunHook()
 	})
-
 	a.Nil(err)
 
-	testHelpInfoInclude(t, c)
-	testArgInfoInclude(t, c.name, argInfo)
+	keepalive := &helpInfo{"beta", "for keepalive testing"}
+	keepaliveArgInfo := &helpInfo{"config", "server config"}
+	config := ""
+	err = cmd.RegisterKeepAliveCmdErr(keepalive.name, keepalive.info, func(args *arg.Arg) {
+		args.String(&config, keepaliveArgInfo.name, keepaliveArgInfo.info)
+		args.ParseAndRunHook()
+	})
+	a.Nil(err)
+
+	defaultCmd := &helpInfo{cmd.DefaultCmdName, "running"}
+	defaultCmdArgInfo := &helpInfo{"who", "who are you?"}
+	who := ""
+	err = cmd.RegisterCmdErr(defaultCmd.name, defaultCmd.info, func(args *arg.Arg) {
+		args.String(&who, defaultCmdArgInfo.name, defaultCmdArgInfo.info)
+		args.ParseAndRunHook()
+	})
+	a.Nil(err)
+
+	testHelpInfoInclude(t, normal)
+	testArgInfoInclude(t, normal.name, normalArgInfo1)
+	testArgInfoInclude(t, normal.name, normalArgInfo2)
+	testHelpInfoInclude(t, keepalive)
+	testArgInfoInclude(t, keepalive.name, keepaliveArgInfo)
+	testHelpInfoInclude(t, defaultCmd)
+	testArgInfoInclude(t, defaultCmd.name, defaultCmdArgInfo)
 
 	func() {
-		oldArgs := setOsArgs("alpha", "-ok")
+		oldArgs := setOsArgs(normal.name, "-ok")
 		defer func() { os.Args = oldArgs }()
 		cmd.Run()
 
 		a.True(ok)
+	}()
+	func() {
+		expect := "github"
+		oldArgs := setOsArgs("run", "-who", expect)
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+
+		a.Equal(expect, who)
+	}()
+
+	normal2 := &helpInfo{normal.name + "2", "for testing2"}
+	normal2ArgInfo1 := &helpInfo{"ok2", "every is ok2"}
+	normal2ArgInfo2 := &helpInfo{"name2", "user name2"}
+	ok = false
+	name = "go-cmd2"
+	// normal.name,   not normal2.name
+	err = cmd.RegisterCmdErr(normal.name, normal2.info, func(args *arg.Arg) {
+		args.Bool(&ok, normal2ArgInfo1.name, normal2ArgInfo1.info)
+		args.String(&name, normal2ArgInfo2.name, normal2ArgInfo2.info)
+		args.ParseAndRunHook()
+	})
+	a.Nil(err)
+
+	defaultCmd = &helpInfo{cmd.DefaultCmdName, "running2"}
+	defaultCmdArgInfo = &helpInfo{"who2", "who are you, anyway?"}
+	who = ""
+	err = cmd.RegisterCmdErr(defaultCmd.name, defaultCmd.info, func(args *arg.Arg) {
+		args.String(&who, defaultCmdArgInfo.name, defaultCmdArgInfo.info)
+		args.ParseAndRunHook()
+	})
+	a.Nil(err)
+
+	testHelpInfoInclude(t, normal)
+	testArgInfoInclude(t, normal.name, normalArgInfo1)
+	testArgInfoInclude(t, normal.name, normalArgInfo2)
+	testHelpInfoInclude(t, keepalive)
+	testArgInfoInclude(t, keepalive.name, keepaliveArgInfo)
+	testHelpInfoInclude(t, defaultCmd)
+	testArgInfoInclude(t, defaultCmd.name, defaultCmdArgInfo)
+	testHelpInfoInclude(t, normal2)
+	testArgInfoInclude(t, normal2.name, normal2ArgInfo1)
+	testArgInfoInclude(t, normal2.name, normal2ArgInfo2)
+
+	func() {
+		oldArgs := setOsArgs(normal.name, "-ok")
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+
+		a.True(ok)
+	}()
+	func() {
+		expect := "github2"
+		oldArgs := setOsArgs("run", "-who2", expect)
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+
+		a.Equal(expect, who)
+	}()
+	func() {
+		expect := "go-cmd2"
+		ok = false
+		oldArgs := setOsArgs(normal2.name, "-"+normal2ArgInfo2.name, expect)
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+
+		a.Equal(expect, name)
+		a.False(ok)
 	}()
 }
 
