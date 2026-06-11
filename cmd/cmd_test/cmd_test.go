@@ -2,6 +2,7 @@ package cmd_test
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/xpwu/go-cmd/arg"
 	"github.com/xpwu/go-cmd/cmd"
@@ -10,6 +11,7 @@ import (
 	_ "github.com/xpwu/go-cmd/cmd/validconf"
 	"io"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"testing"
@@ -275,6 +277,10 @@ func testArgInfoInclude(t *testing.T, cmdName string, help *helpInfo) {
 	oldStdErr := redirectStdErrTo(p)
 	defer func() { os.Stderr = oldStdErr }()
 
+	oldStdout := os.Stdout
+	os.Stdout, _ = os.Open(os.DevNull)
+	defer func() { os.Stdout = oldStdout }()
+
 	oldArgs := setOsArgs(cmdName, "-h")
 	defer func() { os.Args = oldArgs }()
 
@@ -300,6 +306,7 @@ func testArgInfoInclude(t *testing.T, cmdName string, help *helpInfo) {
 func TestRegisterCmd(t *testing.T) {
 	a := assert.New(t)
 
+	// register normal firstly
 	normal := &helpInfo{"alpha", "for testing"}
 	normalArgInfo1 := &helpInfo{"ok", "every is ok"}
 	normalArgInfo2 := &helpInfo{"name", "user name"}
@@ -312,6 +319,7 @@ func TestRegisterCmd(t *testing.T) {
 	})
 	a.Nil(err)
 
+	// register keepalive firstly
 	keepalive := &helpInfo{"beta", "for keepalive testing"}
 	keepaliveArgInfo := &helpInfo{"config", "server config"}
 	config := ""
@@ -321,9 +329,10 @@ func TestRegisterCmd(t *testing.T) {
 	})
 	a.Nil(err)
 
+	// register Default firstly
 	defaultCmd := &helpInfo{cmd.DefaultCmdName, "running"}
 	defaultCmdArgInfo := &helpInfo{"who", "who are you?"}
-	who := ""
+	who := "who"
 	err = cmd.RegisterCmdErr(defaultCmd.name, defaultCmd.info, func(args *arg.Arg) {
 		args.String(&who, defaultCmdArgInfo.name, defaultCmdArgInfo.info)
 		args.ParseAndRunHook()
@@ -338,6 +347,7 @@ func TestRegisterCmd(t *testing.T) {
 	testHelpInfoInclude(t, defaultCmd)
 	testArgInfoInclude(t, defaultCmd.name, defaultCmdArgInfo)
 
+	// run normal firstly
 	func() {
 		oldArgs := setOsArgs(normal.name, "-ok")
 		defer func() { os.Args = oldArgs }()
@@ -345,6 +355,7 @@ func TestRegisterCmd(t *testing.T) {
 
 		a.True(ok)
 	}()
+	// run Default firstly
 	func() {
 		expect := "github"
 		oldArgs := setOsArgs("run", "-who", expect)
@@ -353,7 +364,17 @@ func TestRegisterCmd(t *testing.T) {
 
 		a.Equal(expect, who)
 	}()
+	// run Default by default way
+	func() {
+		expect := "github0"
+		oldArgs := setOsArgs("-who", expect)
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
 
+		a.Equal(expect, who)
+	}()
+
+	// register normal secondly, then would become normal2
 	normal2 := &helpInfo{normal.name + "2", "for testing2"}
 	normal2ArgInfo1 := &helpInfo{"ok2", "every is ok2"}
 	normal2ArgInfo2 := &helpInfo{"name2", "user name2"}
@@ -367,6 +388,7 @@ func TestRegisterCmd(t *testing.T) {
 	})
 	a.Nil(err)
 
+	// register Default secondly
 	defaultCmd = &helpInfo{cmd.DefaultCmdName, "running2"}
 	defaultCmdArgInfo = &helpInfo{"who2", "who are you, anyway?"}
 	who = ""
@@ -387,6 +409,7 @@ func TestRegisterCmd(t *testing.T) {
 	testArgInfoInclude(t, normal2.name, normal2ArgInfo1)
 	testArgInfoInclude(t, normal2.name, normal2ArgInfo2)
 
+	// run normal secondly
 	func() {
 		oldArgs := setOsArgs(normal.name, "-ok")
 		defer func() { os.Args = oldArgs }()
@@ -394,6 +417,7 @@ func TestRegisterCmd(t *testing.T) {
 
 		a.True(ok)
 	}()
+	// run the latest Default
 	func() {
 		expect := "github2"
 		oldArgs := setOsArgs("run", "-who2", expect)
@@ -402,6 +426,16 @@ func TestRegisterCmd(t *testing.T) {
 
 		a.Equal(expect, who)
 	}()
+	// run the latest Default by default way
+	func() {
+		expect := "github20"
+		oldArgs := setOsArgs("-who2", expect)
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+
+		a.Equal(expect, who)
+	}()
+	// run normal2 firstly
 	func() {
 		expect := "go-cmd2"
 		ok = false
@@ -414,16 +448,178 @@ func TestRegisterCmd(t *testing.T) {
 	}()
 }
 
-func TestRegisterDefaultCmd(t *testing.T) {
+func TestDefaultCmdAndArgs(t *testing.T) {
 	a := assert.New(t)
 
 	c := &helpInfo{cmd.DefaultCmdName, "run for testing"}
+	ar := &helpInfo{"con", "config file"}
+	con := "config.json"
+	ok := false
+	run := false
 
 	err := cmd.RegisterCmdErr(c.name, c.info, func(args *arg.Arg) {
-
+		args.String(&con, ar.name, ar.info)
+		args.Bool(&ok, "ok", "")
+		args.ParseAndRunHook()
+		run = true
 	})
 
 	a.Nil(err)
-
 	testHelpInfoInclude(t, c)
+	testArgInfoInclude(t, c.name, ar)
+
+	func() {
+		run = false
+		expect := "run.json"
+		oldArgs := setOsArgs(cmd.DefaultCmdName, "-"+ar.name, expect)
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+
+		a.Equal(expect, con)
+		a.False(ok)
+		a.True(run)
+	}()
+	func() {
+		run = false
+		expect := "run0.json"
+		oldArgs := setOsArgs("-"+ar.name, expect)
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+
+		a.Equal(expect, con)
+		a.False(ok)
+		a.True(run)
+	}()
+	func() {
+		run = false
+		expect := "run2.json"
+		oldArgs := setOsArgs(cmd.DefaultCmdName, "-"+ar.name, expect, "-ok")
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+
+		a.Equal(expect, con)
+		a.True(ok)
+		a.True(run)
+	}()
+	func() {
+		run = false
+		expect := "run3.json"
+		oldArgs := setOsArgs("-"+ar.name, expect, "-ok")
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+
+		a.Equal(expect, con)
+		a.True(ok)
+		a.True(run)
+	}()
 }
+
+func TestArgsHelpExit(t *testing.T) {
+	a := assert.New(t)
+
+	if os.Getenv("IS_CHILD") == "1" {
+		c := &helpInfo{cmd.DefaultCmdName, "run for testing"}
+		ar := &helpInfo{"con", "config file"}
+
+		err := cmd.RegisterCmdErr(c.name, c.info, func(args *arg.Arg) {
+			con := "config.json"
+			ok := false
+			_, _ = fmt.Fprintln(os.Stdout, "running")
+
+			args.String(&con, ar.name, ar.info)
+			args.Bool(&ok, "ok", "")
+			args.ParseAndRunHook()
+
+			_, _ = fmt.Fprintln(os.Stdout, "over")
+		})
+
+		a.Nil(err)
+		testHelpInfoInclude(t, c)
+		testArgInfoInclude(t, c.name, ar)
+
+		func() {
+			oldArgs := setOsArgs(c.name, "-excessive")
+			defer func() { os.Args = oldArgs }()
+			cmd.Run() // exit(2)
+		}()
+
+		return
+	}
+
+	// start child process
+	child := exec.Command(os.Args[0], "-test.paniconexit0", "-test.run", "^\\QTestArgsHelpExit\\E$")
+	child.Env = append(os.Environ(), "IS_CHILD=1")
+	stdout := &strings.Builder{}
+	child.Stdout = stdout
+	stderr := &strings.Builder{}
+	child.Stderr = stderr
+
+	err := child.Run()
+
+	a.NotNil(err)
+	a.Equal("running\n", stdout.String())
+	a.True(strings.HasPrefix(stderr.String(), "flag provided but not defined: -excessive\nUsage of "))
+	if e, ok := err.(*exec.ExitError); ok {
+		a.Equal(2, e.ExitCode())
+	} else {
+		a.Fail(err.Error())
+	}
+}
+
+//func TestKeepalive(t *testing.T) {
+//	a := assert.New(t)
+//
+//	tickSum := make(chan int, 1)
+//
+//	ctx, cancel := context.WithCancel(context.TODO())
+//
+//	err := cmd.RegisterKeepAliveCmdErr(cmd.DefaultCmdName, "run for testing", func(args *arg.Arg) {
+//		con := "config.json"
+//		ok := false
+//
+//		args.String(&con, "config", "config file")
+//		args.Bool(&ok, "ok", "")
+//		args.ParseAndRunHook()
+//
+//		go func() {
+//			tick := 0
+//		end:
+//			for {
+//				select {
+//				case <-time.After(100 * time.Millisecond):
+//					tick += 1
+//				case <-ctx.Done():
+//					tickSum <- tick
+//					break end
+//				}
+//			}
+//		}()
+//
+//	})
+//	a.Nil(err)
+//
+//	err = cmd.RegisterKeepAliveCmdErr("listen", "listen ...", func(args *arg.Arg) {
+//		port := ":80"
+//		args.String(&port, "port", "http:port")
+//		args.ParseAndRunHook()
+//
+//	})
+//	a.Nil(err)
+//
+//	over := make(chan bool)
+//	go func() {
+//		oldArgs := setOsArgs()
+//		defer func() { os.Args = oldArgs }()
+//		cmd.Run()
+//		over <- true
+//	}()
+//	time.Sleep(1 * time.Second)
+//	_, ok := <-over
+//	a.False(ok)
+//
+//	cmd.ExitKeepaliveForTesting()
+//	cancel()
+//	a.True(<-over)
+//
+//	a.LessOrEqual(2, math.Abs(float64(<-tickSum)-10))
+//}
