@@ -7,3 +7,7 @@ func SetExeNameInUsageForTesting(name string) {
 func SetOsExitForTesting(exit func(code int)) {
 	osExit = exit
 }
+
+func ExitKeepaliveForTesting() {
+	exitKeepAlive <- struct{}{}
+}

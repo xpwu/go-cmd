@@ -2,6 +2,7 @@ package cmd_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/xpwu/go-cmd/arg"
@@ -10,11 +11,14 @@ import (
 	_ "github.com/xpwu/go-cmd/cmd/printconf"
 	_ "github.com/xpwu/go-cmd/cmd/validconf"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func setOsArgs(args ...string) (oldArgs []string) {
@@ -566,60 +570,84 @@ func TestArgsHelpExit(t *testing.T) {
 	}
 }
 
-//func TestKeepalive(t *testing.T) {
-//	a := assert.New(t)
-//
-//	tickSum := make(chan int, 1)
-//
-//	ctx, cancel := context.WithCancel(context.TODO())
-//
-//	err := cmd.RegisterKeepAliveCmdErr(cmd.DefaultCmdName, "run for testing", func(args *arg.Arg) {
-//		con := "config.json"
-//		ok := false
-//
-//		args.String(&con, "config", "config file")
-//		args.Bool(&ok, "ok", "")
-//		args.ParseAndRunHook()
-//
-//		go func() {
-//			tick := 0
-//		end:
-//			for {
-//				select {
-//				case <-time.After(100 * time.Millisecond):
-//					tick += 1
-//				case <-ctx.Done():
-//					tickSum <- tick
-//					break end
-//				}
-//			}
-//		}()
-//
-//	})
-//	a.Nil(err)
-//
-//	err = cmd.RegisterKeepAliveCmdErr("listen", "listen ...", func(args *arg.Arg) {
-//		port := ":80"
-//		args.String(&port, "port", "http:port")
-//		args.ParseAndRunHook()
-//
-//	})
-//	a.Nil(err)
-//
-//	over := make(chan bool)
-//	go func() {
-//		oldArgs := setOsArgs()
-//		defer func() { os.Args = oldArgs }()
-//		cmd.Run()
-//		over <- true
-//	}()
-//	time.Sleep(1 * time.Second)
-//	_, ok := <-over
-//	a.False(ok)
-//
-//	cmd.ExitKeepaliveForTesting()
-//	cancel()
-//	a.True(<-over)
-//
-//	a.LessOrEqual(2, math.Abs(float64(<-tickSum)-10))
-//}
+func TestKeepalive(t *testing.T) {
+	a := assert.New(t)
+
+	tickSum := make(chan int, 1)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+
+	err := cmd.RegisterKeepAliveCmdErr(cmd.DefaultCmdName, "run for testing", func(args *arg.Arg) {
+		con := "config.json"
+		ok := false
+		dur := int64(100)
+
+		args.String(&con, "config", "config file")
+		args.Bool(&ok, "ok", "")
+		args.Int64(&dur, "dur", "")
+		args.ParseAndRunHook()
+
+		go func() {
+			tick := 0
+		end:
+			for {
+				select {
+				case <-time.After(time.Duration(dur) * time.Millisecond):
+					tick += 1
+				case <-ctx.Done():
+					tickSum <- tick
+					break end
+				}
+			}
+		}()
+
+	})
+	a.Nil(err)
+
+	err = cmd.RegisterKeepAliveCmdErr("listen", "listen ...", func(args *arg.Arg) {
+		port := ":80"
+		args.String(&port, "port", "http:port")
+		args.ParseAndRunHook()
+
+	})
+	a.Nil(err)
+
+	dur := 200 * time.Millisecond
+	sleep := 1 * time.Second
+
+	over := make(chan bool)
+	go func() {
+		oldArgs := setOsArgs("-dur", strconv.FormatInt(dur.Milliseconds(), 10))
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+		over <- true
+	}()
+	time.Sleep(sleep)
+	select {
+	case <-over:
+		a.Fail("NOT keep alive ")
+	default:
+	}
+
+	cmd.ExitKeepaliveForTesting()
+	cancel()
+	a.True(<-over)
+
+	a.LessOrEqual(math.Abs(float64(<-tickSum)-float64(sleep/dur)), 2.0)
+
+	go func() {
+		oldArgs := setOsArgs("listen")
+		defer func() { os.Args = oldArgs }()
+		cmd.Run()
+		over <- true
+	}()
+
+	time.Sleep(sleep)
+	select {
+	case <-over:
+		a.Fail("NOT keep alive ")
+	default:
+	}
+	cmd.ExitKeepaliveForTesting()
+	a.True(<-over)
+}
