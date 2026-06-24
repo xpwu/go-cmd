@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/xpwu/go-cmd/arg"
 	"github.com/xpwu/go-cmd/cmd"
-	"github.com/xpwu/go-cmd/exe"
 	"github.com/xpwu/go-config/configs"
+	"github.com/xpwu/go-x/exe"
 	"os"
 	"path/filepath"
 )
@@ -16,7 +16,7 @@ func init() {
 		args.String(&argR, "c", "the file name of config file")
 		args.ParseAndRunHook()
 		if !filepath.IsAbs(argR) {
-			argR = filepath.Join(exe.Exe.AbsDir, argR)
+			argR = filepath.Join(exe.AbsDir, argR)
 		}
 		configs.SetConfigurator(&configs.JsonConfig{PrintFile: argR})
 		err := configs.Print()

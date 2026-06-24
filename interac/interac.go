@@ -3,8 +3,8 @@ package interac
 import (
 	"bufio"
 	"context"
-	"github.com/xpwu/go-cmd/exe"
 	"github.com/xpwu/go-log/log"
+	"github.com/xpwu/go-x/exe"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,7 +12,7 @@ import (
 )
 
 func unixSocketFile() string {
-	return filepath.Join(exe.Exe.AbsDir, "."+exe.Exe.Name+".unix_socket_for_client_cmd")
+	return filepath.Join(exe.AbsDir, "."+exe.Name+".unix_socket_for_client_cmd")
 }
 
 type Request struct {

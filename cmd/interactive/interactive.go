@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/xpwu/go-cmd/cmd"
-	"github.com/xpwu/go-cmd/exe"
 	"github.com/xpwu/go-cmd/interac"
+	"github.com/xpwu/go-x/exe"
 	"log"
 	"os"
 )
@@ -23,7 +23,7 @@ func client() {
 
 	write, err := interac.ChanFromServer(context.TODO())
 	if err != nil {
-		fmt.Print(fmt.Sprintf("Connection to service(%s) failed. The service may not have started yet.", exe.Exe.Name))
+		fmt.Print(fmt.Sprintf("Connection to service(%s) failed. The service may not have started yet.", exe.Name))
 		os.Exit(1)
 	}
 

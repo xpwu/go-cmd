@@ -2,8 +2,8 @@ package arg
 
 import (
 	"fmt"
-	"github.com/xpwu/go-cmd/exe"
 	"github.com/xpwu/go-config/configs"
+	"github.com/xpwu/go-x/exe"
 	"os"
 	"path/filepath"
 )
@@ -48,7 +48,7 @@ func HookReadConfigTo(arg *Arg, opts ...ReadConfigOption) {
 
 	arg.AddParseHook(func() {
 		if !filepath.IsAbs(config) {
-			config = filepath.Join(exe.Exe.AbsDir, config)
+			config = filepath.Join(exe.AbsDir, config)
 		}
 
 		configs.SetConfigurator(&configs.JsonConfig{ReadFile: config})
