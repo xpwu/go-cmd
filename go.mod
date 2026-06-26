@@ -5,5 +5,5 @@ go 1.16
 require (
 	github.com/xpwu/go-config v0.1.0
 	github.com/xpwu/go-log v0.1.0
-	github.com/xpwu/go-x v0.2.0
+	github.com/xpwu/go-x v0.3.0
 )
