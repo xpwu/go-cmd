@@ -1,4 +1,4 @@
-package interac
+package clientcli
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
 )
 
 func unixSocketFile() string {
@@ -61,11 +61,16 @@ func ChanFromClient(ctx context.Context) (ch <-chan Request, err error) {
 	return ret, nil
 }
 
+// long connection. one-request-one-response
+// Request/Response end：Blank Line. space tab etc are not Blank Line. only ^$ is Blank Line
+
+func escapeBlankLine(str string) string {
+	re := regexp.MustCompile(`(?m)^$`)
+	return re.ReplaceAllString(str, " \n")
+}
+
 func addBlankLine(request string) string {
-	for len(request) > 0 && request[len(request)-1] == '\n' {
-		request = strings.TrimSuffix(request, "\n")
-	}
-	if len(request) == 0 {
+	if len(request) == 0 || request[len(request)-1] == '\n' {
 		request += "\n"
 	} else {
 		request += "\n\n"
@@ -92,9 +97,6 @@ func readAll(reader *bufio.Reader) (ret string, err error) {
 
 	return allMsg, nil
 }
-
-// long connection. one-request-one-response
-// end：blank line, \n
 
 // ChanFromServer close(ch.Response): read/writer error
 func ChanFromServer(ctx context.Context) (ch chan<- Request, err error) {
@@ -129,7 +131,7 @@ func ChanFromServer(ctx context.Context) (ch chan<- Request, err error) {
 					break forLabel
 				}
 
-				request := addBlankLine(req.Content)
+				request := addBlankLine(escapeBlankLine(req.Content))
 
 				_, err = conn.Write([]byte(request))
 				if err != nil {
@@ -186,8 +188,7 @@ func doConn(ctx context.Context, unixConn *net.UnixConn, ret chan<- Request) {
 			Response: response,
 		}
 		res := <-response
-
-		res = addBlankLine(res)
+		res = addBlankLine(escapeBlankLine(res))
 
 		_, err = unixConn.Write([]byte(res))
 		if err != nil {
