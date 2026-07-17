@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/xpwu/go-cmd/arg"
 	"github.com/xpwu/go-cmd/cmd"
-	_ "github.com/xpwu/go-cmd/cmd/interactive"
 	_ "github.com/xpwu/go-cmd/cmd/printconf"
 	_ "github.com/xpwu/go-cmd/cmd/validconf"
 	"io"
@@ -40,7 +39,6 @@ func TestRunErr(t *testing.T) {
 Error: No command specified or NOT Register 'run'(default) command
 Usage: cmd_test <command> [arguments]
 The valid 'commands' are: (the default command is 'run')
-  client  client cli mode
   pcjson  print config with json
   vcjson  valid config with json
 Every 'argument' starts with '-'.
@@ -113,7 +111,6 @@ func TestRunExit2(t *testing.T) {
 Error: No command specified or NOT Register 'run'(default) command
 Usage: cmd_test <command> [arguments]
 The valid 'commands' are: (the default command is 'run')
-  client  client cli mode
   pcjson  print config with json
   vcjson  valid config with json
 Every 'argument' starts with '-'.
@@ -166,7 +163,6 @@ func testCmdNameLess7HelpInfo(t *testing.T, helpName string, helps ...*helpInfo)
 	a.Equal(`
 Usage: cmd_test <command> [arguments]
 The valid 'commands' are: (the default command is 'run')`+builder.String()+`
-  client  client cli mode
   pcjson  print config with json
   vcjson  valid config with json
 Every 'argument' starts with '-'.
