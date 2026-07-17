@@ -90,10 +90,9 @@ cmd.Run() 在所有注册之后调用
 ./exe
 ```
 ## 4、此lib实现的其它功能
-#### 1）此lib中实现了config的打印、校验，以及交互模式命令。
+#### 1）此lib中实现了config的打印、校验命令。
 ```
 import (
-  _ "github.com/xpwu/go-cmd/cmd/interactive"
   _ "github.com/xpwu/go-cmd/cmd/printconf"
   _ "github.com/xpwu/go-cmd/cmd/validconf"
 )
@@ -120,3 +119,62 @@ func main() {
   cmd.Run()
 }
 ```
+
+## 5、client cli
+启动服务后，可以通过 client 命令启动一个与服务通信的交互式客户端，此交互式客户端的启动与退出不影响服务的运行。
+代码中通过 clientcli.RegisterCmd(xxx) 方法可以注册交互式命令及对应的参数，再通过 clientcli.Start() 
+即可启动注册的交互式命令。（先完成所有的注册，最后再启动）
+```go
+
+import (
+  "github.com/xpwu/go-cmd/cmd"
+  "github.com/xpwu/go-cmd/arg"
+  "github.com/xpwu/go-cmd/clientcli"
+)
+
+func clientcliStart() {
+  clientcli.RegisterCmd("sync", "force sync", func(args *arg.Arg) clientcli.AckToClient {
+    ctx, logger := log.WithCtx(context.TODO())
+
+    d, coll := "<db>", "<coll>"
+    args.String(&d, "d", "db")
+    args.ParseAndRunHook()
+
+    // --- sync handle ---
+    // 
+   
+    return "OK!"
+  })
+
+  clientcli.Start()
+}
+
+func main() {
+  cmd.RegisterCmd("print", "print config file", func(args *arg.Arg) {
+    file := "config.default"
+    args.String(&file, "f", "config file name")
+    args.ParseAndRunHook()
+
+    // --- print handle ---
+    //
+  })
+
+  cmd.RegisterKeepAliveCmd("listen", "listen port", func(args *arg.Arg) {
+    port := ":80"
+    ip := "127.0.0.1"
+    args.String(&port, "port", "listen :port")
+    args.String(&ip, "ip", "listen ip addr")
+    args.ParseAndRunHook()
+  
+    // --- listen handle ---
+    //
+
+		clientcliStart()
+		
+		// --- else handle ---
+  })
+  
+  cmd.Run()
+}
+```
+通过 ./exe client 即可启动一个交互式客户端，输入 sync -d "user" 即可用参数 user 执行注册的 sync 命令
